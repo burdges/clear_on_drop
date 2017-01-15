@@ -76,7 +76,7 @@ impl<T, P> Drop for ClearOnDrop<T, P>
     #[inline]
     fn drop(&mut self) {
         let place = self.deref_mut();
-        *place = Default::default();
+        *place = unsafe { ::std::mem::zeroed::<T>() };
         hide_mem::<T>(place);
     }
 }
