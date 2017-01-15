@@ -8,13 +8,13 @@ use hide::hide_mem;
 /// This struct contains a reference to a memory location, either as a
 /// mutable borrow (`&mut T`), or as a owned container (`Box<T>` or
 /// similar). When this struct is dropped, the referenced location is
-/// overwritten with its `Default` value.
+/// overwritten with zeros.
 ///
 /// # Example
 ///
 /// ```
 /// # use clear_on_drop::ClearOnDrop;
-/// #[derive(Default)]
+/// #[derive(Debug, Clone, Copy)]
 /// struct MyData {
 ///     value: u32,
 /// }
@@ -29,12 +29,12 @@ use hide::hide_mem;
 /// ```
 
 pub struct ClearOnDrop<T, P>
-  where T: Default, P: Deref<Target = T> + DerefMut {
+  where T: Copy, P: Deref<Target = T> + DerefMut {
     _place: P,
 }
 
 impl<T, P> ClearOnDrop<T, P>
-  where T: Default, P: Deref<Target = T> + DerefMut {
+  where T: Copy, P: Deref<Target = T> + DerefMut {
     /// Creates a new `ClearOnDrop` which clears `place` on drop.
     ///
     /// The `place` parameter can be a `&mut T`, a `Box<T>`, or other
@@ -46,7 +46,7 @@ impl<T, P> ClearOnDrop<T, P>
 }
 
 impl<T, P> fmt::Debug for ClearOnDrop<T, P> 
-  where T: Default, P: Deref<Target = T> + DerefMut + fmt::Debug {
+  where T: Copy, P: Deref<Target = T> + DerefMut + fmt::Debug {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self._place, f)
@@ -54,7 +54,7 @@ impl<T, P> fmt::Debug for ClearOnDrop<T, P>
 }
 
 impl<T, P> Deref for ClearOnDrop<T, P> 
-  where T: Default, P: Deref<Target = T> + DerefMut {
+  where T: Copy, P: Deref<Target = T> + DerefMut {
     type Target = T;
 
     #[inline]
@@ -64,7 +64,7 @@ impl<T, P> Deref for ClearOnDrop<T, P>
 }
 
 impl<T, P> DerefMut for ClearOnDrop<T, P> 
-  where T: Default, P: Deref<Target = T> + DerefMut {
+  where T: Copy, P: Deref<Target = T> + DerefMut {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         DerefMut::deref_mut(&mut self._place)
@@ -72,7 +72,7 @@ impl<T, P> DerefMut for ClearOnDrop<T, P>
 }
 
 impl<T, P> Drop for ClearOnDrop<T, P>
-  where T: Default, P: Deref<Target = T> + DerefMut {
+  where T: Copy, P: Deref<Target = T> + DerefMut {
     #[inline]
     fn drop(&mut self) {
         let place = self.deref_mut();
@@ -85,9 +85,9 @@ impl<T, P> Drop for ClearOnDrop<T, P>
 mod tests {
     use super::ClearOnDrop;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Copy, Clone, Default)]
     struct Place {
-        data: [u32; 4],
+        pub data: [u32; 4],
     }
 
     const DATA: [u32; 4] = [0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210];
