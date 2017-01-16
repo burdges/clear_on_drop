@@ -1,5 +1,7 @@
 use std::fmt;
 use std::ops::{Deref, DerefMut};
+use std::borrow::{Borrow, BorrowMut};
+use std::marker::PhantomData;
 
 use hide::hide_mem;
 use clearable::Clearable;
@@ -45,14 +47,15 @@ use clearable::Clearable;
 
 pub struct ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut
+          P: Borrow<T> + BorrowMut<T>
 {
     _place: P,
+    _phantom: PhantomData<T>
 }
 
 impl<T, P> ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut
+          P: Borrow<T> + BorrowMut<T>
 {
     /// Creates a new `ClearOnDrop` which clears `place` on drop.
     ///
@@ -60,13 +63,13 @@ impl<T, P> ClearOnDrop<T, P>
     /// containers which behave like `Box<T>`.
     #[inline]
     pub fn new(place: P) -> Self {
-        ClearOnDrop { _place: place }
+        ClearOnDrop { _place: place, _phantom: PhantomData }
     }
 }
 
 impl<T, P> Drop for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut
+          P: Borrow<T> + BorrowMut<T>
 {
     #[inline]
     fn drop(&mut self) {
@@ -78,7 +81,7 @@ impl<T, P> Drop for ClearOnDrop<T, P>
 
 impl<T, P> fmt::Debug for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut + fmt::Debug
+          P: Borrow<T> + BorrowMut<T> + fmt::Debug
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -88,29 +91,50 @@ impl<T, P> fmt::Debug for ClearOnDrop<T, P>
 
 impl<T, P> Deref for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut
+          P: Borrow<T> + BorrowMut<T>
 {
     type Target = T;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        Deref::deref(&self._place)
+        Borrow::borrow(&self._place)
     }
 }
 
 impl<T, P> DerefMut for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut
+          P: Borrow<T> + BorrowMut<T>
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        DerefMut::deref_mut(&mut self._place)
+        BorrowMut::borrow_mut(&mut self._place)
+    }
+}
+
+
+impl<T, P> Borrow<T> for ClearOnDrop<T, P>
+    where T: Clearable + ?Sized,
+          P: Borrow<T> + BorrowMut<T>
+{
+    #[inline]
+    fn borrow(&self) -> &T {
+        Borrow::borrow(&self._place)
+    }
+}
+
+impl<T, P> BorrowMut<T> for ClearOnDrop<T, P>
+    where T: Clearable + ?Sized,
+          P: Borrow<T> + BorrowMut<T>
+{
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut T {
+        BorrowMut::borrow_mut(&mut self._place)
     }
 }
 
 impl<T, P> AsRef<T> for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut + AsRef<T>
+          P: Borrow<T> + BorrowMut<T> + AsRef<T>
 {
     #[inline]
     fn as_ref(&self) -> &T {
@@ -120,7 +144,7 @@ impl<T, P> AsRef<T> for ClearOnDrop<T, P>
 
 impl<T, P> AsMut<T> for ClearOnDrop<T, P>
     where T: Clearable + ?Sized,
-          P: Deref<Target = T> + DerefMut + AsMut<T>
+          P: Borrow<T> + BorrowMut<T> + AsMut<T>
 {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
