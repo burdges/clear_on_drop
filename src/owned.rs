@@ -4,17 +4,17 @@ use std::cmp::*;
 use std::ops::{Deref, DerefMut};
 use std::borrow::{Borrow, BorrowMut};
 
-// use clearable::Clearable;
+use clearable::Clearable;
 
 
 /// Abreviation for `ClearOnDrop` composed with `Owned`
 pub type ClearOwnedOnDrop<T> = ::clear_on_drop::ClearOnDrop<T, Owned<T>>;
-    // where T: Copy + ?Sized;
+    // where T: Clearable;
 
 /// Abreviation for `ClearOnDrop::new(Owned::new(_))`
 #[inline(always)]
 pub fn owned_clear_on_drop<T>(t: T) -> ClearOwnedOnDrop<T>
-    where T: Copy + ?Sized
+    where T: Clearable
 {
     ::clear_on_drop::ClearOnDrop::new(Owned::new(t))
 }
@@ -49,7 +49,7 @@ pub fn owned_clear_on_drop<T>(t: T) -> ClearOwnedOnDrop<T>
 ///     let mut key = ClearOnDrop::new(Owned::new([1,2,3,4,5,6,7]));
 ///     key[5] = 3;
 ///     place = &key[0];
-///     // This causes the test to fail!  FAIL!
+///     // This causes the test to fail!
 ///     // ::std::mem::drop(key);
 ///  } 
 /// // Warning removing the above 
@@ -58,18 +58,44 @@ pub fn owned_clear_on_drop<T>(t: T) -> ClearOwnedOnDrop<T>
 ///    unsafe { assert_eq!(*place.offset(i), 0); }
 /// }
 /// ```
-pub struct Owned<T>(T) where T: Copy + ?Sized;
+///
+/// Failed Example
+///
+/// ```
+/// # use clear_on_drop::owned_clear_on_drop;
+/// # use std::collections::HashMap;
+/// # // use std::ops::Deref;
+/// let ptr: *const u64;
+/// let mut hm = HashMap::new();
+/// hm.insert(13u16,owned_clear_on_drop(69u64));
+/// ptr = hm.get_mut(&13u16).unwrap().as_ref();
+/// unsafe { assert_eq!(*ptr, 69u64); }
+/// ::std::mem::drop(hm);
+/// // This causes the test to fail!
+/// // unsafe { assert_eq!(*ptr, 0u64); }
+/// ```
+pub struct Owned<T>(T) where T: ?Sized;
 
-impl<T> Owned<T> where T: Copy + ?Sized {
+impl<T> Owned<T> where T: Sized {
     /// Wrap an owned value so it masquerades as a reference.
     pub fn new(t: T) -> Owned<T> {  Owned(t)  }
 }
+
+/*
+/// We should not actually be using `Owned<T>: Clearable` anywhere.
+/// At present, we do not allow `Owned<T>: Copy` so neither should
+/// this be harmful either, except for possibly making some test
+/// pass incorrectly.
+unsafe impl<T> Clearable for T where T: Clearable {
+    unsafe fn clear(&mut self)  { self.0.clear(); }
+}
+*/
 
 
 // --- Implement pointer traits --- //
 
 impl<T> Deref for Owned<T>
-    where T: Copy + ?Sized 
+    where T: ?Sized 
 {
     type Target = T;
 
@@ -80,7 +106,7 @@ impl<T> Deref for Owned<T>
 }
 
 impl<T> DerefMut for Owned<T>
-    where T: Copy + ?Sized 
+    where T: ?Sized 
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -89,7 +115,7 @@ impl<T> DerefMut for Owned<T>
 }
 
 impl<T> AsRef<T> for Owned<T>
-    where T: Copy + ?Sized
+    where T: ?Sized
 {
     #[inline]
     fn as_ref(&self) -> &T {
@@ -98,7 +124,7 @@ impl<T> AsRef<T> for Owned<T>
 }
 
 impl<T> AsMut<T> for Owned<T>
-    where T: Copy + ?Sized
+    where T: ?Sized
 {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
@@ -107,7 +133,7 @@ impl<T> AsMut<T> for Owned<T>
 }
 
 impl<T> Borrow<T> for Owned<T>
-    where T: Copy + ?Sized
+    where T: ?Sized
 {
     #[inline]
     fn borrow(&self) -> &T {
@@ -116,7 +142,7 @@ impl<T> Borrow<T> for Owned<T>
 }
 
 impl<T> BorrowMut<T> for Owned<T>
-    where T: Copy + ?Sized
+    where T: ?Sized
 {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
@@ -125,7 +151,7 @@ impl<T> BorrowMut<T> for Owned<T>
 }
 
 impl<T> Default for Owned<T>
-    where T: Copy + ?Sized + Default
+    where T: ?Sized + Default
 {
     #[inline]
     fn default() -> Self {
@@ -137,7 +163,7 @@ impl<T> Default for Owned<T>
 // --- Delegate derivable traits --- //
 
 impl<T> fmt::Debug for Owned<T>
-    where T: Copy + ?Sized + fmt::Debug
+    where T: ?Sized + fmt::Debug
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
@@ -146,7 +172,7 @@ impl<T> fmt::Debug for Owned<T>
 
 /*
 impl<T> Clone for Owned<T>
-    where T: Copy + ?Sized
+    where T: ?Sized
 {
     fn clone(&self) -> Self {  Owned(self.0.clone())  }
     fn clone_from(&mut self, source: &Self) {  self.0.clone_from(&source.0);  }
@@ -157,24 +183,24 @@ impl<T> Clone for Owned<T>
 
 
 impl<T> Hash for Owned<T>
-    where T: Copy + ?Sized + Hash
+    where T: ?Sized + Hash
 {
     fn hash<H: Hasher>(&self, state: &mut H) {  self.0.hash(state);  }
 }
 
 impl<T,R> PartialEq<Owned<R>> for Owned<T>
-    where T: Copy + ?Sized + PartialEq<R>,
-          R: Copy + ?Sized 
+    where T: ?Sized + PartialEq<R>,
+          R: ?Sized 
 {
     fn eq(&self, other: &Owned<R>) -> bool {  self.0.eq(&other.0)  }
     fn ne(&self, other: &Owned<R>) -> bool {  self.0.ne(&other.0)  }
 }
 
-impl<T> Eq for Owned<T> where T: Copy + ?Sized + PartialEq<T> + Eq { }
+impl<T> Eq for Owned<T> where T: ?Sized + PartialEq<T> + Eq { }
 
 impl<T,R> PartialOrd<Owned<R>> for Owned<T>
-    where T: Copy + ?Sized + PartialOrd<R>,
-          R: Copy + ?Sized 
+    where T: ?Sized + PartialOrd<R>,
+          R: ?Sized 
 {
     fn partial_cmp(&self, other: &Owned<R>) -> Option<Ordering> { self.0.partial_cmp(&other.0) }
 
@@ -185,7 +211,7 @@ impl<T,R> PartialOrd<Owned<R>> for Owned<T>
 }
 
 impl<T> Ord for Owned<T>
-    where T: Copy + ?Sized + Ord
+    where T: ?Sized + Ord
 {
     fn cmp(&self, other: &Self) -> Ordering {  self.0.cmp(&other.0)  }
 }
@@ -204,6 +230,22 @@ mod tests {
            key[5] = 3;
            place = &key[0];
            // This causes the test to fail!
+           // ::std::mem::drop(key);
+        } 
+        for i in 0..7 {
+            unsafe { assert_eq!(*place.offset(i), 0); }
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn release_owned() {
+        let place: *const u16;
+        {
+           let mut key = ClearOnDrop::new(Owned::new([1,2,3,4,5,6,7]));
+           key[5] = 3;
+           place = &key[0];
+           // This should at least work in release buids, but does not.
            // ::std::mem::drop(key);
         } 
         for i in 0..7 {
